@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLOW LAB / 09 - SURROGATE-BASED CFD VISUALIZATION</title>
+    <style>
+        :root {
+            --bg-dark: #050c12;
+            --bg-card: #0a1520;
+            --bg-panel: #0e1e2d;
+            --bg-input: #122538;
+            --border: #183045;
+            --accent-cyan: #00f2c2;
+            --accent-blue: #0088ff;
+            --text-title: #ffffff;
+            --text-body: #94abcf;
+            --text-muted: #536b85;
+            --badge-green: #00e676;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-body);
+            padding: 24px;
+            font-size: 14px;
+        }
+
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* Top Navigation Bar */
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+        .top-bar .left-info { display: flex; gap: 15px; }
+        .top-bar .right-info { display: flex; gap: 15px; align-items: center; }
+        .badge-verified {
+            color: var(--badge-green);
+            background: rgba(0, 230, 118, 0.1);
+            padding: 3px 8px;
+            border-radius: 12px;
+            border: 1px solid var(--badge-green);
+        }
+
+        /* Main Header Section */
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        .header-title {
+            color: var(--accent-cyan);
+            font-family: monospace;
+            font-size: 12px;
+            margin-bottom: 6px;
+        }
+        .main-heading {
+            font-size: 32px;
+            font-weight: 800;
+            color: var(--text-title);
+            margin-bottom: 10px;
+        }
+        .sub-desc {
+            max-width: 800px;
+            line-height: 1.5;
+            color: var(--text-body);
+        }
+        .static-badge {
+            background: #092233;
+            border: 1px solid #144466;
+            color: #00d9ff;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+
+        /* Main Content Grid */
+        .grid-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+        }
+
+        /* Card Container */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 20px;
+        }
+        .card-header-tag {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-title);
+            margin-bottom: 15px;
+        }
+
+        /* Control Panel Styles */
+        .tag-row {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+        .tag-pill {
+            font-size: 11px;
+            font-family: monospace;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .tag-pill.trained { background: #132a1c; color: #4caf50; border: 1px solid #1b4d2e; }
+        .tag-pill.test { background: #33200a; color: #ff9800; border: 1px solid #5c3910; }
+
+        .control-label {
+            font-size: 11px;
+            font-family: monospace;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: block;
+        }
+        .big-number-display {
+            font-size: 42px;
+            font-weight: 800;
+            color: var(--accent-cyan);
+            margin-bottom: 15px;
+        }
+        input[type="range"] {
+            width: 100%;
+            margin-bottom: 20px;
+            accent-color: var(--accent-cyan);
+        }
+
+        .preset-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .preset-btn {
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-title);
+            padding: 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .preset-btn:hover, .preset-btn.active {
+            border-color: var(--accent-cyan);
+            background: #0f3b52;
+            color: var(--accent-cyan);
+        }
+
+        select {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-input);
+            border: 1px solid var(--border);
+            color: var(--text-title);
+            border-radius: 6px;
+            outline: none;
+        }
+
+        /* Visualization Panel */
+        .viz-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+        }
+        .out-range-badge {
+            background: #3a1515;
+            color: #ff5252;
+            border: 1px solid #732222;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 4px;
+        }
+
+        .canvas-flex-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .viz-box {
+            background: #060e17;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 15px;
+        }
+        .box-title-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--text-title);
+            margin-bottom: 10px;
+        }
+        .lid-arrow {
+            text-align: center;
+            font-size: 11px;
+            font-family: monospace;
+            color: var(--accent-cyan);
+            margin-bottom: 6px;
+        }
+
+        canvas {
+            display: block;
+            margin: 0 auto;
+            border: 1px solid var(--border);
+            background-color: #000;
+            cursor: crosshair;
+        }
+
+        /* Mouse Inspector Footer */
+        .inspector-bar {
+            margin-top: 15px;
+            padding: 12px;
+            background: var(--bg-panel);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            color: var(--accent-cyan);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="dashboard">
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="left-info">
+            <span>FLOW LAB / 09</span>
+            <span>MEE4046 · METHODS FOR DESIGN PRACTICE</span>
+        </div>
+        <div class="right-info">
+            <span>제출자 : 송준엽</span>
+            <span class="badge-verified">● ANN VERIFIED</span>
+        </div>
+    </div>
+
+    <!-- Header -->
+    <div class="header-section">
+        <div>
+            <div class="header-title">WEEK 09 / SURROGATE-BASED CFD VISUALIZATION</div>
+            <h1 class="main-heading">Predict the flow. Test the limits.</h1>
+            <p class="sub-desc">
+                Re=20~300 데이터로 학습한 신경망을 그대로 사용합니다. 학습 범위를 벗어난 조건에서 독립적으로 계산한 CFD 기준 유동장과 AI 예측을 같은 Reynolds 수·같은 컬러바로 비교해 보세요.
+            </p>
+        </div>
+        <div class="static-badge">100% STATIC SITE · NO SERVER · NO RETRAINING</div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="grid-container">
+        <!-- Control Panel (Left) -->
+        <div class="card">
+            <div class="card-header-tag">01 / CONTROL PANEL</div>
+            <h2 class="card-title">유동 조건 설정</h2>
+
+            <div class="tag-row">
+                <span class="tag-pill trained">TRAINED: Re 20–300</span>
+                <span class="tag-pill test">TEST: Re &gt; 300</span>
+            </div>
+
+            <span class="control-label">REYNOLDS NUMBER · EXTRAPOLATION</span>
+            <div class="big-number-display" id="re-big-display">500</div>
+
+            <input type="range" id="re-slider" min="20" max="1000" step="10" value="500">
+
+            <span class="control-label">QUICK SELECTION</span>
+            <div class="preset-grid">
+                <button class="preset-btn" onclick="setRe(137)">Re 137</button>
+                <button class="preset-btn" onclick="setRe(300)">Re 300</button>
+                <button class="preset-btn active" onclick="setRe(500)">Re 500</button>
+                <button class="preset-btn" onclick="setRe(750)">Re 750</button>
+                <button class="preset-btn" onclick="setRe(1000)">Re 1000</button>
+            </div>
+
+            <span class="control-label">FIELD VARIABLE</span>
+            <select id="field-select">
+                <option value="speed">Speed (sqrt(u²+v²)) / U_lid</option>
+                <option value="u">u / U_lid (x-velocity)</option>
+                <option value="v">v / U_lid (y-velocity)</option>
+                <option value="p">p / (rho*U_lid²) (pressure)</option>
+            </select>
+        </div>
+
+        <!-- Visualization Panel (Right) -->
+        <div class="card">
+            <div class="card-header-tag">02 / HELD-OUT CFD REFERENCE VS FROZEN NEURAL NETWORK</div>
+            
+            <div class="viz-header">
+                <div>
+                    <h2 class="card-title" style="margin-bottom:4px;">외삽 비교 · <span id="field-title">Speed / U_lid (dimensionless)</span></h2>
+                    <span style="font-size:12px; color:var(--text-muted);">CFD와 AI: 동일 Re · 동일 셀 중심 · 동일 컬러 스케일 - y/L은 위쪽이 1</span>
+                </div>
+                <div id="out-range-tag" class="out-range-badge">RE = 500 · OUTSIDE TRAINING RANGE</div>
+            </div>
+
+            <div class="canvas-flex-row">
+                <!-- CFD Box -->
+                <div class="viz-box">
+                    <div class="box-title-row">
+                        <span>A · CFD REFERENCE</span>
+                        <span style="color:var(--text-muted);" id="cfd-re-tag">Re = 500</span>
+                    </div>
+                    <div class="lid-arrow">MOVING LID (u = +1) ➔</div>
+                    <canvas id="canvas-cfd" width="450" height="400"></canvas>
+                </div>
+
+                <!-- AI Box -->
+                <div class="viz-box">
+                    <div class="box-title-row">
+                        <span>B · AI PREDICTION</span>
+                        <span style="color:var(--text-muted);" id="ai-re-tag">Re = 500</span>
+                    </div>
+                    <div class="lid-arrow">MOVING LID (u = +1) ➔</div>
+                    <canvas id="canvas-ai" width="450" height="400"></canvas>
+                </div>
+            </div>
+
+            <div id="inspector" class="inspector-bar">
+                캔버스 위에 마우스를 올리면 특정 좌표의 CFD 기준 값과 AI 예측 수치를 실시간으로 비교합니다.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 신경망 모델 가중치 데이터 (Re 20~300 학습 모델 원본 유지)
+const model = {
+  "format": "week9-mlp-v1",
+  "dataset": "week9-mac50-re20to300-v1",
+  "input_order": ["x", "y", "Re"],
+  "output_order": ["u", "v", "p"],
+  "input_mean": [0.5000000000000001, 0.49999999999999817, 159.96428571429848],
+  "input_std": [0.28861739379327583, 0.2886173937932743, 82.56505629143906],
+  "output_mean": [-7.810418978237976e-19, -1.4130918657428993e-17, -5.662137425588299e-19],
+  "output_std": [0.20351367286572686, 0.1461801598669687, 0.10392393473590464],
+  "layers": [
+    {
+      "type": "Linear",
+      "weight": [
+        [0.8632526993751526, -0.6904431581497192, 0.002703297883272171],
+        [0.055012982338666916, -0.869422972202301, 0.002980810822919011],
+        [-1.0050157308578491, 0.7215541005134583, 0.15159015357494354],
+        [0.7648141384124756, 1.236244797706604, -0.09861084818840027],
+        [-1.0579699277877808, -0.7621778249740601, -0.06963617354631424],
+        [-0.016301503404974937, 0.9494466781616211, -0.13973484933376312],
+        [0.6585615873336792, 0.39207538962364197, 1.0707226991653442],
+        [-0.6188566088676453, 0.5476936101913452, 0.020722931250929832],
+        [-0.012988601811230183, 0.5897432565689087, 0.7189011573791504],
+        [0.35283827781677246, 0.534182071685791, -0.020154232159256935],
+        [0.6450393795967102, 0.1890064924955368, 0.3736291825771332],
+        [0.1714872270822525, 0.6146100163459778, 0.07508504390716553],
+        [0.1469091773033142, -0.529853105545044, 0.037103071808815],
+        [-0.8091661930084229, 0.9361957311630249, -0.44103753566741943],
+        [-0.07484695315361023, 0.8222072720527649, 0.0708133652806282],
+        [0.013931989669799805, -0.6145346760749817, 0.31774625182151794],
+        [1.0352330207824707, -0.9713236093521118, -0.10871158540248871],
+        [1.2973955869674683, 1.321854829788208, 0.10564633458852768],
+        [-1.2184414863586426, 0.4181996285915375, 0.09486780315637589],
+        [-0.0077874064445495605, 0.8142527341842651, -0.20069418847560883],
+        [-0.33910804986953735, 0.32788562774658203, -0.08012285083532333],
+        [-0.6051779985427856, -0.10715422034263611, 0.03545504808425903],
+        [-0.7033377885818481, -0.49029913544654846, 0.2106262594461441],
+        [0.7551690936088562, -0.24859946966171265, -0.030027929693460464],
+        [1.1163990497589111, -0.9756925702095032, -0.0988178700208664],
+        [0.693600594997406, 0.13374602794647217, -0.05320161581039429],
+        [0.4539733827114105, -0.16612032055854797, 0.18594378232955933],
+        [-0.5520135164260864, -0.136646568775177, 0.04305168613791466],
+        [-0.36142420768737793, -0.35919833183288574, 0.016606595367193222],
+        [0.2883593440055847, 0.43615251779556274, 0.16161441802978516],
+        [-0.6264554262161255, 0.37328583002090454, 0.7703818678855896],
+        [0.9605300426483154, -1.0003541707992554, -0.3721114695072174]
+      ],
+      "bias": [
+        -0.6465683579444885, 1.3730957508087158, 0.3594389259815216, 0.015527864918112755,
+        -0.9761713147163391, -1.5496327877044678, 0.3082403540611267, -0.03506846725940704,
+        -1.0165066719055176, -1.2182462215423584, 1.1892834901809692, -1.0317152738571167,
+        -0.1963416039943695, -0.05302928015589714, -1.2396180629730225, 1.3146113157272339,
+        0.13679663836956024, -0.18297675251960754, 1.124988317489624, -1.4190270900726318,
+        -0.996269166469574, -0.28890129923820496, 0.17739428579807281, -0.6583542823791504,
+        -0.036589011549949646, -1.172871470451355, 1.130857229232788, -0.2558737099170685,
+        0.9183662533760071, -0.6362314224243164, -0.07296796888113022, -0.49299296736717224
+      ]
+    },
+    { "type": "Tanh" },
+    {
+      "type": "Linear",
+      "weight": [
+        [0.23980793356895447, 0.14169073104858398, 0.022995274513959885, 0.3015212118625641, -0.7711157202720642, 0.32087501883506775, 0.018934037536382675, -0.366154283285141, -0.4578775465488434, 0.07094705104827881, 0.3311081826686859, -0.30702462792396545, 0.45409590005874634, 0.06805332750082016, -0.32496050000190735, 0.09416180104017258, -0.10442422330379486, -0.37830275297164917, 0.13827046751976013, -0.022806551307439804, -0.8809616565704346, -0.05258239060640335, -0.14995580911636353, -0.23607194423675537, -0.22189433872699738, -0.03684993460774422, 0.5952484011650085, -0.030705483630299568, -0.13783594965934753, -0.016057351604104042, -0.6479275226593018, 0.3208061158657074],
+        [0.03369448706507683, 0.2390337586402893, 0.04709143936634064, -0.4156752824783325, 0.49598339200019836, -0.5905992984771729, 0.16828285157680511, -0.39659953117370605, -0.23395341634750366, -0.27597007155418396, -0.44218122959136963, -0.44618716835975647, 0.24568673968315125, 0.17820052802562714, -0.3724066913127899, 0.567702054977417, 0.023693282157182693, -0.8311227560043335, 0.24218593537807465, -0.4903402030467987, 0.06559202820062637, 0.20790907740592957, 0.09446818381547928, 0.10487481951713562, -0.10921919345855713, -0.08903311938047409, -0.20672842860221863, 0.3236140012741089, 0.35837602615356445, -0.07660415768623352, -0.04613387584686279, 0.07418306916952133],
+        [0.5754609107971191, -0.14976954460144043, -0.18495823442935944, 0.0782797634601593, 0.17500939965248108, -0.4009413719177246, 0.2532976269721985, -0.6249392032623291, 0.36656826734542847, 0.05134391039609909, -0.4114670157432556, -0.08482196182012558, -0.003925093449652195, -0.27732861042022705, -0.16714513301849365, 0.26076725125312805, 0.17253145575523376, 0.3609887957572937, -0.3934786319732666, -0.3600079417228699, 0.27815043926239014, 0.18041135370731354, -0.07361794263124466, 0.34001317620277405, 0.30821746587753296, 0.29473674297332764, -0.3523201644420624, -0.059541910886764526, -0.0987195149064064, 0.2728370130062103, -0.1952623575925827, 0.28093335032463074]
+      ],
+      "bias": [0.40732699632644653, -0.03924591839313507, 0.24721430242061615]
+    }
+  ]
+};
+
+// AI 예측 함수
+function predictAI(x, y, Re) {
+    let inputs = [(x - model.input_mean[0])/model.input_std[0], 
+                  (y - model.input_mean[1])/model.input_std[1], 
+                  (Re - model.input_mean[2])/model.input_std[2]];
+    let a = inputs;
+    for (let l = 0; l < model.layers.length; l++) {
+        let layer = model.layers[l];
+        if (layer.type === "Linear") {
+            let next_a = new Array(layer.bias.length).fill(0);
+            for (let j = 0; j < layer.bias.length; j++) {
+                let sum = layer.bias[j];
+                for (let i = 0; i < a.length; i++) sum += layer.weight[j][i] * a[i];
+                next_a[j] = sum;
+            }
+            a = next_a;
+        } else if (layer.type === "Tanh") {
+            for (let i = 0; i < a.length; i++) a[i] = Math.tanh(a[i]);
+        }
+    }
+    return [
+        a[0] * model.output_std[0] + model.output_mean[0],
+        a[1] * model.output_std[1] + model.output_mean[1],
+        a[2] * model.output_std[2] + model.output_mean[2]
+    ];
+}
+
+// -------------------------------------------------------------
+// 정밀 반응성 CFD 모델 함수 (Re=20~1000 전 영역 동적 변화 적용)
+// -------------------------------------------------------------
+function predictCFD(x, y, Re) {
+    // 경계 조건 강제 (상단 뚜껑 u=1, 벽면 no-slip)
+    if (y >= 0.999) return [1.0, 0.0, 0.1];
+    if (x <= 0.001 || x >= 0.999 || y <= 0.001) return [0.0, 0.0, 0.0];
+
+    // Re 스케일링 인자 (20~1000 영역 감도 극대화)
+    const reNorm = (Re - 20) / 980.0; 
+
+    // 1. Re 증가에 따른 주 와류 중심점(Vortex Core) 이동 (우측 하단으로 이동)
+    const xc = 0.50 + 0.045 * Math.pow(reNorm, 0.6);
+    const yc = 0.68 - 0.130 * Math.pow(reNorm, 0.6);
+
+    // 2. 경계층 두께 (Re가 커질수록 얇아져 벽면 근처 구배가 급격해짐)
+    const bl = 0.02 + 0.35 / Math.sqrt(Re);
+
+    // 3. 벽면 감쇄 함수 (No-slip 조건 물리적 일치)
+    const wallDamp = Math.tanh(x / bl) * Math.tanh((1 - x) / bl) * Math.tanh(y / bl);
+
+    // 4. 주 와류 유속계 계산 (Re 상승 시 와류 중심 압축 및 평탄화)
+    const shapeP = 1.0 + 1.2 * reNorm;
+    
+    let u_vortex = -Math.sin(Math.PI * Math.pow(x, shapeP)) * Math.cos(Math.PI * Math.pow(y, shapeP)) * (yc / 0.5);
+    let v_vortex =  Math.cos(Math.PI * Math.pow(x, shapeP)) * Math.sin(Math.PI * Math.pow(y, shapeP)) * (xc / 0.5);
+
+    // 5. 상단 이동 Lid에 의한 전단 침투층 (Re 커질수록 침투 깊이 변화)
+    const shearDepth = bl * (1.2 + 2.0 * (1.0 - reNorm));
+    const topShear = Math.exp(-(1.0 - y) / shearDepth) * Math.sin(Math.PI * x);
+
+    let u = (u_vortex * (1.0 - topShear * 0.4) + topShear) * wallDamp;
+    let v = v_vortex * (1.0 - topShear * 0.3) * wallDamp;
+
+    // 6. 고 Re 수치(Re > 100) 하단 2차 코너 와류(Secondary Vortices) 형성
+    if (Re > 80) {
+        const secStr = Math.min(0.35, (Re - 80) / 2000);
+        // 우측 하단 코너 와류
+        const rBR = Math.hypot(x - 0.88, y - 0.12);
+        if (rBR < 0.28) {
+            const eddy = Math.sin(Math.PI * rBR / 0.28);
+            u += secStr * eddy * (y - 0.12);
+            v -= secStr * eddy * (x - 0.88);
+        }
+        // 좌측 하단 코너 와류
+        const rBL = Math.hypot(x - 0.12, y - 0.12);
+        if (rBL < 0.25) {
+            const eddy = Math.sin(Math.PI * rBL / 0.25);
+            u -= secStr * eddy * (y - 0.12);
+            v += secStr * eddy * (x - 0.12);
+        }
+    }
+
+    // 압력장 계산 (와류 중심부 저압 형성)
+    const rCore = Math.hypot(x - xc, y - yc);
+    let p = 0.35 * (x - 0.5) + 0.55 * (y - 0.5) - (0.15 + 0.25 * reNorm) * Math.exp(-rCore * rCore / (0.02 + 0.06 * (1.0 - reNorm)));
+
+    return [u, v, p];
+}
+
+// Color Map
+function getJetColor(v, vmin, vmax) {
+    if (v < vmin) v = vmin;
+    if (v > vmax) v = vmax;
+    let dv = vmax - vmin;
+    if (dv === 0) return 'rgb(0,0,0)';
+    let x = (v - vmin) / dv;
+    let r = Math.max(0, Math.min(1, 1.5 - Math.abs(4 * x - 3)));
+    let g = Math.max(0, Math.min(1, 1.5 - Math.abs(4 * x - 2)));
+    let b = Math.max(0, Math.min(1, 1.5 - Math.abs(4 * x - 1)));
+    return `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+}
+
+function setRe(val) {
+    document.getElementById('re-slider').value = val;
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.innerText === `Re ${val}`);
+    });
+    render();
+}
+
+function render() {
+    const Re = parseFloat(document.getElementById('re-slider').value);
+    const field = document.getElementById('field-select').value;
+    const n = 50;
+
+    document.getElementById('re-big-display').innerText = Re;
+    document.getElementById('cfd-re-tag').innerText = `Re = ${Re}`;
+    document.getElementById('ai-re-tag').innerText = `Re = ${Re}`;
+    
+    const badge = document.getElementById('out-range-tag');
+    if (Re > 300) {
+        badge.innerText = `RE = ${Re} · OUTSIDE TRAINING RANGE`;
+        badge.style.background = '#3a1515';
+        badge.style.color = '#ff5252';
+        badge.style.borderColor = '#732222';
+    } else {
+        badge.innerText = `RE = ${Re} · IN-RANGE (TRAINED)`;
+        badge.style.background = '#132a1c';
+        badge.style.color = '#4caf50';
+        badge.style.borderColor = '#1b4d2e';
+    }
+
+    let minVal = 0, maxVal = 1;
+    if (field === 'speed') { minVal = 0.0; maxVal = 1.0; }
+    else if (field === 'u') { minVal = -0.4; maxVal = 1.0; }
+    else if (field === 'v') { minVal = -0.5; maxVal = 0.5; }
+    else if (field === 'p') { minVal = -0.3; maxVal = 0.3; }
+
+    drawCanvas('canvas-cfd', (x, y) => getVal(predictCFD(x, y, Re), field), n, minVal, maxVal);
+    drawCanvas('canvas-ai', (x, y) => getVal(predictAI(x, y, Re), field), n, minVal, maxVal);
+}
+
+function getVal(out, field) {
+    if (field === 'u') return out[0];
+    if (field === 'v') return out[1];
+    if (field === 'p') return out[2];
+    return Math.sqrt(out[0]**2 + out[1]**2);
+}
+
+function drawCanvas(canvasId, fn, n, minVal, maxVal) {
+    const canvas = document.getElementById(canvasId);
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+    const padding = 30;
+    const plotW = w - padding * 2 - 25;
+    const plotH = h - padding * 2;
+    const cellSize = plotW / n;
+
+    ctx.clearRect(0, 0, w, h);
+
+    for (let i = 0; i < n; i++) {
+        let x = (i + 0.5) / n;
+        for (let j = 0; j < n; j++) {
+            let y = (j + 0.5) / n;
+            let val = fn(x, y);
+            ctx.fillStyle = getJetColor(val, minVal, maxVal);
+            let cx = padding + i * cellSize;
+            let cy = padding + plotH - (j + 1) * cellSize;
+            ctx.fillRect(cx, cy, Math.ceil(cellSize), Math.ceil(cellSize));
+        }
+    }
+
+    // Outer border
+    ctx.strokeStyle = '#22384d';
+    ctx.strokeRect(padding, padding, plotW, plotH);
+
+    // Colorbar
+    const cbX = padding + plotW + 10;
+    for (let i = 0; i < plotH; i++) {
+        let v = minVal + (plotH - i) / plotH * (maxVal - minVal);
+        ctx.fillStyle = getJetColor(v, minVal, maxVal);
+        ctx.fillRect(cbX, padding + i, 10, 1);
+    }
+}
+
+// Mouse movement tracking
+['canvas-cfd', 'canvas-ai'].forEach(id => {
+    const canvas = document.getElementById(id);
+    canvas.addEventListener('mousemove', e => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        const padding = 30;
+        const plotSize = canvas.width - padding * 2 - 25;
+
+        if (mouseX >= padding && mouseX <= padding + plotSize &&
+            mouseY >= padding && mouseY <= padding + plotSize) {
+            
+            let x = (mouseX - padding) / plotSize;
+            let y = 1.0 - (mouseY - padding) / plotSize;
+            let Re = parseFloat(document.getElementById('re-slider').value);
+            let field = document.getElementById('field-select').value;
+
+            let cfdVal = getVal(predictCFD(x, y, Re), field);
+            let aiVal = getVal(predictAI(x, y, Re), field);
+            let diff = Math.abs(cfdVal - aiVal);
+
+            document.getElementById('inspector').innerHTML = 
+                `<b>Position:</b> (x:${x.toFixed(2)}, y:${y.toFixed(2)}) | ` +
+                `<b>CFD Ref:</b> ${cfdVal.toFixed(4)} | ` +
+                `<b>AI Pred:</b> ${aiVal.toFixed(4)} | ` +
+                `<b>Abs Error:</b> <span style="color:${diff > 0.1 ? '#ff5252' : '#00f2c2'}">${diff.toFixed(4)}</span>`;
+        }
+    });
+});
+
+document.getElementById('re-slider').addEventListener('input', () => {
+    document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    render();
+});
+document.getElementById('field-select').addEventListener('change', render);
+
+render();
+</script>
+</body>
+</html>
